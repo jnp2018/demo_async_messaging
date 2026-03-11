@@ -1,0 +1,16 @@
+{
+  "name": "async-messaging-demo",
+  "version": "1.0.0",
+  "description": "Live demo visualizing Asynchronous Messaging with RabbitMQ",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "produce": "node producer.js",
+    "consume": "node consumer.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.3",
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}

@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async Messaging — Live Demo</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ════════════════════════════════════════
+   RESET & BASE
+   ════════════════════════════════════════ */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #0d1117;
+            color: #c9d1d9;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ════════════════════════════════════════
+   ZONE A — CONTROL BAR
+   ════════════════════════════════════════ */
+        .control-bar {
+            height: 70px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 16px;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .control-bar h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #58a6ff;
+            white-space: nowrap;
+            margin-right: 8px;
+        }
+
+        .control-bar h1 span {
+            color: #e3b341;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            background: #21262d;
+            color: #c9d1d9;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: #30363d;
+            border-color: #58a6ff;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: #238636;
+            border-color: #2ea043;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #2ea043;
+        }
+
+        .btn-burst {
+            background: #9e6a03;
+            border-color: #e3b341;
+            color: #fff;
+        }
+
+        .btn-burst:hover {
+            background: #bb8009;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .slider-group input[type="range"] {
+            width: 100px;
+            accent-color: #58a6ff;
+        }
+
+        .slider-group .val {
+            color: #58a6ff;
+            min-width: 42px;
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        .toggle {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            background: #30363d;
+            border-radius: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle.active {
+            background: #f85149;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+
+        .toggle.active::after {
+            transform: translateX(18px);
+        }
+
+        .counters {
+            display: flex;
+            gap: 16px;
+            margin-left: auto;
+            font-size: 12px;
+        }
+
+        .counter {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .counter .label {
+            color: #8b949e;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .counter .value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .counter .value.sent {
+            color: #58a6ff;
+        }
+
+        .counter .value.processed {
+            color: #3fb950;
+        }
+
+        .counter .value.queued {
+            color: #e3b341;
+        }
+
+        /* ════════════════════════════════════════
+   ZONE B — ARCHITECTURE DIAGRAM
+   ════════════════════════════════════════ */
+        .diagram-zone {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .diagram-container {
+            flex: 1;
+            display: flex;
+            gap: 0;
+            padding: 12px 40px;
+            position: relative;
+        }
+
+        .diagram-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .diagram-column .col-title {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            padding: 5px 14px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .col-sync .col-title {
+            color: #f85149;
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+        }
+
+        .col-async .col-title {
+            color: #3fb950;
+            background: rgba(63, 185, 80, 0.1);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+
+        .divider {
+            width: 1px;
+            background: linear-gradient(to bottom, transparent, #30363d 20%, #30363d 80%, transparent);
+            margin: 0 12px;
+            flex-shrink: 0;
+        }
+
+        /* ── Node boxes ── */
+        .node {
+            position: relative;
+            width: 160px;
+            padding: 8px 12px;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            background: #161b22;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            z-index: 2;
+        }
+
+        .node .latency {
+            font-size: 10px;
+            color: #8b949e;
+            margin-top: 2px;
+        }
+
+        /* Sync chain */
+        .sync-chain {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .sync-arrow {
+            width: 2px;
+            height: 20px;
+            background: #30363d;
+            position: relative;
+        }
+
+        .sync-arrow::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: -4px;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #30363d;
+        }
+
+        .node.active-sync {
+            border-color: #f85149;
+            box-shadow: 0 0 20px rgba(248, 81, 73, 0.5), 0 0 40px rgba(248, 81, 73, 0.2);
+        }
+
+        .node.active-async {
+            border-color: #3fb950;
+            box-shadow: 0 0 20px rgba(63, 185, 80, 0.5), 0 0 40px rgba(63, 185, 80, 0.2);
+        }
+
+        .node.broker-active {
+            border-color: #e3b341;
+            box-shadow: 0 0 25px rgba(227, 179, 65, 0.6), 0 0 50px rgba(227, 179, 65, 0.2);
+        }
+
+        .node.error {
+            border-color: #f85149;
+            background: rgba(248, 81, 73, 0.15);
+            box-shadow: 0 0 15px rgba(248, 81, 73, 0.4);
+        }
+
+        .node.offline {
+            border-color: #484f58;
+            background: #0d1117;
+            color: #484f58;
+        }
+
+        /* Total latency */
+        .latency-total {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .latency-total.sync-total {
+            background: rgba(248, 81, 73, 0.15);
+            color: #f85149;
+            border: 1px solid rgba(248, 81, 73, 0.4);
+        }
+
+        .latency-total.async-total {
+            background: rgba(63, 185, 80, 0.15);
+            color: #3fb950;
+            border: 1px solid rgba(63, 185, 80, 0.4);
+        }
+
+        /* ── Live Timer ── */
+        .live-timer {
+            margin-top: 10px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            font-variant-numeric: tabular-nums;
+            transition: all 0.3s ease;
+            min-width: 130px;
+        }
+
+        .live-timer.sync-timer {
+            background: rgba(248, 81, 73, 0.08);
+            border: 1px solid rgba(248, 81, 73, 0.25);
+            color: #f85149;
+        }
+
+        .live-timer.async-timer {
+            background: rgba(63, 185, 80, 0.08);
+            border: 1px solid rgba(63, 185, 80, 0.25);
+            color: #3fb950;
+        }
+
+        .live-timer .timer-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 4px;
+            opacity: 0.7;
+            font-weight: 600;
+        }
+
+        .live-timer.counting {
+            animation: timerPulse 0.5s ease infinite;
+        }
+
+        @keyframes timerPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .live-timer.done-green {
+            background: rgba(63, 185, 80, 0.2);
+            border-color: rgba(63, 185, 80, 0.5);
+            box-shadow: 0 0 20px rgba(63, 185, 80, 0.3);
+        }
+
+        .live-timer.done-red {
+            background: rgba(248, 81, 73, 0.2);
+            border-color: rgba(248, 81, 73, 0.5);
+            box-shadow: 0 0 20px rgba(248, 81, 73, 0.3);
+        }
+
+        /* ── Comparison Bar ── */
+        .comparison-bar {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 10px 24px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .comparison-bar.visible {
+            opacity: 1;
+        }
+
+        .comparison-bar .bar-track {
+            width: 300px;
+            height: 8px;
+            background: #21262d;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .comparison-bar .bar-sync {
+            height: 100%;
+            background: linear-gradient(90deg, #f85149, #da3633);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .comparison-bar .bar-label {
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .comparison-bar .bar-label .speed-mult {
+            color: #3fb950;
+            font-size: 16px;
+        }
+
+        /* Broker big box */
+        .broker-box {
+            width: 230px;
+            padding: 12px;
+            border: 2px solid #e3b341;
+            border-radius: 10px;
+            background: #161b22;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: #e3b341;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .broker-box .queue-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #e3b341;
+            color: #0d1117;
+            font-size: 12px;
+            font-weight: 700;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .broker-box .queue-badge.has-messages {
+            animation: badgePulse 1s ease infinite;
+        }
+
+        .broker-box .broker-subtitle {
+            font-size: 11px;
+            color: #8b949e;
+            font-weight: 400;
+            margin-top: 4px;
+        }
+
+        /* Async services row */
+        .async-services {
+            display: flex;
+            gap: 16px;
+            margin-top: 0;
+        }
+
+        .async-services .node {
+            width: 120px;
+            font-size: 11px;
+        }
+
+        .async-arrows {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            height: 24px;
+            justify-content: center;
+        }
+
+        .async-arrow-line {
+            width: 2px;
+            height: 28px;
+            background: #30363d;
+            position: relative;
+        }
+
+        .async-arrow-line::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: -4px;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #30363d;
+        }
+
+        /* ── Glow pulse keyframes ── */
+        @keyframes glowPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(63, 185, 80, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 25px rgba(63, 185, 80, 0.7), 0 0 50px rgba(63, 185, 80, 0.3);
+            }
+        }
+
+        @keyframes glowPulseRed {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(248, 81, 73, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 25px rgba(248, 81, 73, 0.7), 0 0 50px rgba(248, 81, 73, 0.3);
+            }
+        }
+
+        @keyframes glowPulseBroker {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px rgba(227, 179, 65, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(227, 179, 65, 0.8), 0 0 60px rgba(227, 179, 65, 0.3);
+            }
+        }
+
+        @keyframes badgePulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+        }
+
+        .pulse-green {
+            animation: glowPulse 0.8s ease;
+        }
+
+        .pulse-red {
+            animation: glowPulseRed 0.8s ease;
+        }
+
+        .pulse-broker {
+            animation: glowPulseBroker 0.8s ease;
+        }
+
+        /* Traveling dot on arrows */
+        @keyframes travelDown {
+            0% {
+                top: 0;
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 100%;
+                opacity: 0;
+            }
+        }
+
+        .traveling-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            left: -2px;
+            animation: travelDown 0.3s ease forwards;
+        }
+
+        .traveling-dot.blue {
+            background: #58a6ff;
+            box-shadow: 0 0 8px #58a6ff;
+        }
+
+        .traveling-dot.green {
+            background: #3fb950;
+            box-shadow: 0 0 8px #3fb950;
+        }
+
+        .traveling-dot.red {
+            background: #f85149;
+            box-shadow: 0 0 8px #f85149;
+        }
+
+        .traveling-dot.yellow {
+            background: #e3b341;
+            box-shadow: 0 0 8px #e3b341;
+        }
+
+        /* ════════════════════════════════════════
+   ZONE C — LIVE FEED
+   ════════════════════════════════════════ */
+        .feed-zone {
+            height: 300px;
+            display: flex;
+            gap: 1px;
+            background: #21262d;
+            border-top: 1px solid #30363d;
+            flex-shrink: 0;
+        }
+
+        .feed-panel {
+            flex: 1;
+            background: #0d1117;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .feed-panel .panel-header {
+            padding: 10px 16px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            font-size: 13px;
+            font-weight: 600;
+            color: #58a6ff;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feed-panel .panel-header .icon {
+            font-size: 16px;
+        }
+
+        /* Message Log */
+        .message-log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .message-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .message-log::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .message-log::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 3px;
+        }
+
+        .log-row {
+            display: flex;
+            align-items: center;
+            padding: 4px 16px;
+            font-size: 12px;
+            gap: 12px;
+            transition: background 0.2s;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .log-row:hover {
+            background: #161b22;
+        }
+
+        .log-row .ts {
+            color: #484f58;
+            min-width: 80px;
+        }
+
+        .log-row .order-id {
+            color: #e3b341;
+            min-width: 100px;
+            font-weight: 600;
+        }
+
+        .log-row .product {
+            color: #c9d1d9;
+            flex: 1;
+        }
+
+        .log-row .amount {
+            color: #8b949e;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .log-row .status-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .badge-queued {
+            background: rgba(88, 166, 255, 0.15);
+            color: #58a6ff;
+        }
+
+        .badge-processing {
+            background: rgba(227, 179, 65, 0.15);
+            color: #e3b341;
+            animation: processingPulse 1s ease infinite;
+        }
+
+        .badge-done {
+            background: rgba(63, 185, 80, 0.15);
+            color: #3fb950;
+        }
+
+        @keyframes processingPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Consumer Activity */
+        .consumer-grid {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            align-content: start;
+        }
+
+        .worker-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .worker-card .worker-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .worker-card .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .status-dot.idle {
+            background: #3fb950;
+            box-shadow: 0 0 6px rgba(63, 185, 80, 0.5);
+        }
+
+        .status-dot.busy {
+            background: #e3b341;
+            box-shadow: 0 0 6px rgba(227, 179, 65, 0.5);
+            animation: processingPulse 1s ease infinite;
+        }
+
+        .worker-card .worker-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .worker-card .worker-current {
+            font-size: 11px;
+            color: #8b949e;
+            margin-bottom: 6px;
+            min-height: 16px;
+        }
+
+        .worker-card .worker-stats {
+            font-size: 11px;
+            color: #58a6ff;
+            margin-bottom: 8px;
+        }
+
+        .worker-card .progress-bar {
+            height: 4px;
+            background: #21262d;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .worker-card .progress-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #3fb950, #58a6ff);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .worker-card.processing {
+            border-color: #e3b341;
+            box-shadow: 0 0 10px rgba(227, 179, 65, 0.2);
+        }
+
+        .no-workers {
+            grid-column: 1/-1;
+            text-align: center;
+            color: #484f58;
+            font-size: 13px;
+            padding: 30px;
+        }
+
+        /* ════════════════════════════════════════
+   DEMO SIDEBAR
+   ════════════════════════════════════════ */
+        .demo-sidebar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100%;
+            background: #161b22;
+            border-left: 1px solid #30363d;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .demo-sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-toggle {
+            position: absolute;
+            top: 50%;
+            left: -36px;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 80px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+            color: #8b949e;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+            writing-mode: vertical-rl;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-toggle:hover {
+            background: #21262d;
+            color: #c9d1d9;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #30363d;
+            font-weight: 700;
+            color: #e3b341;
+            font-size: 14px;
+        }
+
+        .demo-steps {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .demo-step {
+            padding: 14px;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .demo-step:hover {
+            border-color: #58a6ff;
+            background: rgba(88, 166, 255, 0.05);
+        }
+
+        .demo-step.active {
+            border-color: #e3b341;
+            background: rgba(227, 179, 65, 0.1);
+        }
+
+        .demo-step .step-num {
+            font-size: 11px;
+            color: #e3b341;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .demo-step .step-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #c9d1d9;
+            margin-bottom: 6px;
+        }
+
+        .demo-step .step-desc {
+            font-size: 11px;
+            color: #8b949e;
+            line-height: 1.5;
+        }
+
+        .demo-step .step-cmd {
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: #0d1117;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #3fb950;
+        }
+
+        /* ── Resize Handle ── */
+        .resize-handle {
+            height: 6px;
+            background: #21262d;
+            cursor: ns-resize;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 15;
+            border-top: 1px solid #30363d;
+            transition: background 0.15s;
+        }
+
+        .resize-handle:hover,
+        .resize-handle.dragging {
+            background: #58a6ff;
+        }
+
+        .resize-handle::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 2px;
+            background: #484f58;
+            border-radius: 1px;
+        }
+
+        .resize-handle:hover::after,
+        .resize-handle.dragging::after {
+            background: #fff;
+        }
+
+        /* ── Sync Column Toggle ── */
+        .col-sync.hidden {
+            display: none !important;
+        }
+
+        .col-sync.hidden+.divider {
+            display: none !important;
+        }
+
+        .divider.hidden {
+            display: none !important;
+        }
+
+        .btn-toggle-sync {
+            background: transparent;
+            border: 1px solid rgba(248, 81, 73, 0.4);
+            color: #f85149;
+            font-size: 11px;
+            padding: 4px 10px;
+        }
+
+        .btn-toggle-sync:hover {
+            background: rgba(248, 81, 73, 0.1);
+            border-color: #f85149;
+        }
+
+        .btn-toggle-sync.off {
+            opacity: 0.5;
+            border-style: dashed;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ════════════════ ZONE A ════════════════ -->
+    <div class="control-bar">
+        <h1>Async Messaging <span>— Live Demo</span></h1>
+        <button class="btn btn-primary" id="btnSend" onclick="sendOrder()">▶ Send Order</button>
+        <button class="btn btn-burst" id="btnBurst" onclick="burstOrders()">⚡ Burst 10</button>
+        <button class="btn" id="btnReset" onclick="resetDemo()" style="border-color:#484f58;color:#8b949e;">↺
+            Reset</button>
+        <div class="slider-group">
+            <label>Speed:</label>
+            <input type="range" id="speedSlider" min="100" max="3000" value="1000" step="100"
+                oninput="updateSpeedLabel()">
+            <span class="val" id="speedLabel">1000ms</span>
+        </div>
+        <div class="toggle-group">
+            <span>Simulate Email Failure</span>
+            <div class="toggle" id="failureToggle" onclick="toggleFailure()"></div>
+        </div>
+        <button class="btn btn-toggle-sync" id="btnSyncToggle" onclick="toggleSyncColumn()">Sync ◉</button>
+        <div class="counters">
+            <div class="counter"><span class="label">Sent</span><span class="value sent" id="cntSent">0</span></div>
+            <div class="counter"><span class="label">Processed</span><span class="value processed"
+                    id="cntProcessed">0</span></div>
+            <div class="counter"><span class="label">In Queue</span><span class="value queued" id="cntQueued">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════ ZONE B ════════════════ -->
+    <div class="diagram-zone">
+        <div class="diagram-container">
+            <!-- LEFT: Sync column -->
+            <div class="diagram-column col-sync">
+                <div class="col-title">Synchronous (before)</div>
+                <div class="sync-chain">
+                    <div class="node" id="sync-post">POST /order</div>
+                    <div class="sync-arrow" id="arrow-s1"></div>
+                    <div class="node" id="sync-order">Order Service</div>
+                    <div class="sync-arrow" id="arrow-s2"></div>
+                    <div class="node" id="sync-inventory">
+                        Inventory
+                        <div class="latency">+50ms</div>
+                    </div>
+                    <div class="sync-arrow" id="arrow-s3"></div>
+                    <div class="node" id="sync-email">
+                        Email
+                        <div class="latency">+200ms</div>
+                    </div>
+                    <div class="sync-arrow" id="arrow-s4"></div>
+                    <div class="node" id="sync-analytics">
+                        Analytics
+                        <div class="latency">+100ms</div>
+                    </div>
+                    <div class="sync-arrow" id="arrow-s5"></div>
+                    <div class="latency-total sync-total" id="sync-latency">350ms ❌</div>
+                    <div class="live-timer sync-timer" id="syncTimer">
+                        <div class="timer-label">⏱ Response Time</div>
+                        <span id="syncTimerValue">0ms</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- RIGHT: Async column -->
+            <div class="diagram-column col-async">
+                <div class="col-title">Async Messaging (after)</div>
+                <div class="sync-chain">
+                    <div class="node" id="async-post">POST /order</div>
+                    <div class="sync-arrow" id="arrow-a1"></div>
+                    <div class="latency-total async-total" id="async-latency" style="margin-bottom:8px;">202 Accepted —
+                        20ms ✅</div>
+                    <div class="sync-arrow" id="arrow-a2"></div>
+                    <div class="broker-box" id="broker-box">
+                        Message Broker (RabbitMQ)
+                        <div class="broker-subtitle">fanout exchange → orders queue</div>
+                        <div class="queue-badge" id="queueBadge">0</div>
+                    </div>
+                    <div class="async-arrows">
+                        <div class="async-arrow-line" id="arrow-b1"></div>
+                        <div class="async-arrow-line" id="arrow-b2"></div>
+                        <div class="async-arrow-line" id="arrow-b3"></div>
+                    </div>
+                    <div class="async-services">
+                        <div class="node" id="async-inventory">Inventory<br>Service<div class="latency"
+                                id="async-inv-lat">+50ms</div>
+                        </div>
+                        <div class="node" id="async-email">Email<br>Service<div class="latency" id="async-email-lat">
+                                +200ms</div>
+                        </div>
+                        <div class="node" id="async-analytics">Analytics<br>Service<div class="latency"
+                                id="async-ana-lat">+100ms</div>
+                        </div>
+                    </div>
+                    <div class="live-timer async-timer" id="asyncTimer">
+                        <div class="timer-label">⏱ Response Time</div>
+                        <span id="asyncTimerValue">0ms</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Comparison bar -->
+            <div class="comparison-bar" id="comparisonBar">
+                <span class="bar-label" style="color:#f85149;">Sync</span>
+                <div class="bar-track">
+                    <div class="bar-sync" id="compBarFill"></div>
+                </div>
+                <span class="bar-label"><span class="speed-mult" id="compLabel">—</span> slower</span>
+            </div>
+        </div>
+
+        <!-- Demo sidebar -->
+        <div class="demo-sidebar" id="demoSidebar">
+            <button class="sidebar-toggle" onclick="toggleSidebar()">DEMO ▸</button>
+            <div class="sidebar-header">📋 Demo Steps</div>
+            <div class="demo-steps">
+                <div class="demo-step" onclick="runDemoStep(1)" id="step1">
+                    <div class="step-num">Step 1</div>
+                    <div class="step-title">Queue fills up</div>
+                    <div class="step-desc">Send 15 orders with no consumer running. Watch the queue depth grow on the
+                        broker badge.</div>
+                </div>
+                <div class="demo-step" onclick="runDemoStep(2)" id="step2">
+                    <div class="step-num">Step 2</div>
+                    <div class="step-title">Consumer starts</div>
+                    <div class="step-desc">Start a consumer to process the queued orders.</div>
+                    <div class="step-cmd">$ node consumer.js Worker-1</div>
+                </div>
+                <div class="demo-step" onclick="runDemoStep(3)" id="step3">
+                    <div class="step-num">Step 3</div>
+                    <div class="step-title">Scale up</div>
+                    <div class="step-desc">Add a second consumer to see parallel processing & load distribution.</div>
+                    <div class="step-cmd">$ node consumer.js Worker-2</div>
+                </div>
+                <div class="demo-step" onclick="runDemoStep(4)" id="step4">
+                    <div class="step-num">Step 4</div>
+                    <div class="step-title">Failure & Recovery</div>
+                    <div class="step-desc">Toggle email failure to see how async architecture handles partial failures
+                        gracefully.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════ RESIZE HANDLE ════════════════ -->
+    <div class="resize-handle" id="resizeHandle"></div>
+
+    <!-- ════════════════ ZONE C ════════════════ -->
+    <div class="feed-zone" id="feedZone">
+        <div class="feed-panel">
+            <div class="panel-header"><span class="icon">📜</span> Message Log</div>
+            <div class="message-log" id="messageLog"></div>
+        </div>
+        <div class="feed-panel">
+            <div class="panel-header"><span class="icon">👷</span> Consumer Activity</div>
+            <div class="consumer-grid" id="consumerGrid">
+                <div class="no-workers">No consumers connected<br><span
+                        style="font-size:11px;color:#30363d;margin-top:4px;display:block;">Run: node consumer.js
+                        Worker-1</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ════════════════════════════════════════
+        // STATE
+        // ════════════════════════════════════════
+        let ws = null;
+        let emailFailure = false;
+        let stats = { sent: 0, processed: 0, queued: 0 };
+        const logRows = [];
+        const MAX_LOG = 200;
+
+        // ════════════════════════════════════════
+        // WEBSOCKET
+        // ════════════════════════════════════════
+        function connectWS() {
+            const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            ws = new WebSocket(`${proto}://${location.host}`);
+
+            ws.onopen = () => console.log('[WS] Connected');
+            ws.onclose = () => {
+                console.log('[WS] Disconnected, reconnecting...');
+                setTimeout(connectWS, 1000);
+            };
+
+            ws.onmessage = (evt) => {
+                const data = JSON.parse(evt.data);
+                handleEvent(data);
+            };
+        }
+
+        function handleEvent(data) {
+            switch (data.type) {
+                case 'order_sent':
+                    if (data.stats) updateCounters(data.stats);
+                    addLogRow(data.order, 'queued');
+                    animateSyncChain(data.order);
+                    animateAsyncChain(data.order);
+                    break;
+                case 'order_queued':
+                    break;
+                case 'order_processing':
+                    updateLogRowStatus(data.order.id, 'processing');
+                    break;
+                case 'order_done':
+                    updateLogRowStatus(data.order.id, 'done');
+                    if (data.stats) updateCounters(data.stats);
+                    break;
+                case 'queue_depth':
+                    updateQueueBadge(data.count);
+                    break;
+                case 'consumer_update':
+                    renderWorkers(data.workers);
+                    break;
+                case 'email_failure':
+                    emailFailure = data.active;
+                    updateEmailFailureUI();
+                    break;
+                case 'reset':
+                    stats.sent = 0; stats.processed = 0; stats.queued = 0;
+                    updateCounters(stats);
+                    updateQueueBadge(0);
+                    document.getElementById('messageLog').innerHTML = '';
+                    logRows.length = 0;
+                    break;
+            }
+        }
+
+        // ════════════════════════════════════════
+        // CONTROLS
+        // ════════════════════════════════════════
+        async function sendOrder() {
+            await fetch('/api/send', { method: 'POST' });
+        }
+
+        async function burstOrders() {
+            const btn = document.getElementById('btnBurst');
+            btn.disabled = true;
+            btn.textContent = '⚡ Sending...';
+            for (let i = 0; i < 10; i++) {
+                await fetch('/api/send', { method: 'POST' });
+                await sleep(80);
+            }
+            btn.disabled = false;
+            btn.textContent = '⚡ Burst 10';
+        }
+
+        async function resetDemo() {
+            await fetch('/api/reset', { method: 'POST' });
+        }
+
+        function updateSpeedLabel() {
+            const v = document.getElementById('speedSlider').value;
+            document.getElementById('speedLabel').textContent = v + 'ms';
+        }
+
+        async function toggleFailure() {
+            const tog = document.getElementById('failureToggle');
+            tog.classList.toggle('active');
+            await fetch('/api/toggle-failure', { method: 'POST' });
+        }
+
+        function updateEmailFailureUI() {
+            const tog = document.getElementById('failureToggle');
+            if (emailFailure) {
+                tog.classList.add('active');
+            } else {
+                tog.classList.remove('active');
+            }
+
+            // Sync side
+            const syncEmail = document.getElementById('sync-email');
+            if (emailFailure) {
+                syncEmail.classList.add('error');
+                syncEmail.innerHTML = '⚠ Email<div class="latency" style="color:#f85149">TIMEOUT</div>';
+            } else {
+                syncEmail.classList.remove('error');
+                syncEmail.innerHTML = 'Email<div class="latency">+200ms</div>';
+            }
+
+            // Async side
+            const asyncEmail = document.getElementById('async-email');
+            if (emailFailure) {
+                asyncEmail.classList.add('offline');
+                asyncEmail.innerHTML = '⚠ Email<br>Offline<div class="latency" id="async-email-lat" style="color:#484f58">—</div>';
+            } else {
+                asyncEmail.classList.remove('offline');
+                asyncEmail.innerHTML = 'Email<br>Service<div class="latency" id="async-email-lat">+200ms</div>';
+            }
+
+            // Sync total latency
+            const syncLat = document.getElementById('sync-latency');
+            if (emailFailure) {
+                syncLat.textContent = 'TIMEOUT ⚠';
+            } else {
+                syncLat.textContent = '350ms ❌';
+            }
+        }
+
+        // ════════════════════════════════════════
+        // COUNTERS
+        // ════════════════════════════════════════
+        function updateCounters(s) {
+            stats = { ...stats, ...s };
+            document.getElementById('cntSent').textContent = stats.sent;
+            document.getElementById('cntProcessed').textContent = stats.processed;
+            document.getElementById('cntQueued').textContent = Math.max(0, stats.queued);
+        }
+
+        function updateQueueBadge(count) {
+            const badge = document.getElementById('queueBadge');
+            badge.textContent = count;
+            if (count > 0) {
+                badge.classList.add('has-messages');
+            } else {
+                badge.classList.remove('has-messages');
+            }
+        }
+
+        // ════════════════════════════════════════
+        // TIMER HELPERS
+        // ════════════════════════════════════════
+        let syncAnimating = false;
+
+        // Starts a simulated timer that counts from 0 to targetMs
+        // over the given animation duration (proportional mapping)
+        function startSimTimer(elementId, targetMs, animDurationMs) {
+            const el = document.getElementById(elementId);
+            const timerBox = el.closest('.live-timer');
+            timerBox.classList.add('counting');
+            timerBox.classList.remove('done-green', 'done-red');
+            el.textContent = '0ms';
+            const startWall = performance.now();
+            const id = setInterval(() => {
+                const elapsed = performance.now() - startWall;
+                const progress = Math.min(elapsed / animDurationMs, 1);
+                const simulated = Math.round(progress * targetMs);
+                el.textContent = simulated + 'ms';
+            }, 16);
+            return { id, timerBox, el };
+        }
+
+        function stopSimTimer(timer, finalText, cssClass) {
+            clearInterval(timer.id);
+            timer.el.textContent = finalText;
+            timer.timerBox.classList.remove('counting');
+            timer.timerBox.classList.add(cssClass);
+        }
+
+        // ════════════════════════════════════════
+        // SYNC ANIMATION (slow, dramatic)
+        // ════════════════════════════════════════
+        // Visual delays per step (slowed for presentation).
+        // The timer counts simulated ms, NOT real wall-clock.
+        const SYNC_STEPS = [
+            // { node, arrow, visualDelay, simulatedLatency }
+            { node: 'sync-post', arrow: 'arrow-s1', visualDelay: 200, simLatency: 0 },
+            { node: 'sync-order', arrow: 'arrow-s2', visualDelay: 300, simLatency: 0 },
+            { node: 'sync-inventory', arrow: 'arrow-s3', visualDelay: 500, simLatency: 50 },
+            { node: 'sync-email', arrow: 'arrow-s4', visualDelay: 1200, simLatency: 200 },
+            { node: 'sync-analytics', arrow: 'arrow-s5', visualDelay: 600, simLatency: 100 },
+        ];
+        const SYNC_TOTAL_VISUAL = SYNC_STEPS.reduce((s, x) => s + x.visualDelay, 0); // ~2800ms
+        const SYNC_TOTAL_SIM = 350; // 50 + 200 + 100
+
+        async function animateSyncChain(order) {
+            if (syncAnimating) return;
+            syncAnimating = true;
+
+            // Start a timer that counts 0→350 over the animation duration
+            const timer = startSimTimer('syncTimerValue', SYNC_TOTAL_SIM, SYNC_TOTAL_VISUAL);
+
+            const syncLatEl = document.getElementById('sync-latency');
+            let accumulatedSim = 0;
+
+            for (let i = 0; i < SYNC_STEPS.length; i++) {
+                const step = SYNC_STEPS[i];
+                const el = document.getElementById(step.node);
+                if (!el) continue;
+                accumulatedSim += step.simLatency;
+
+                // Email failure — stuck!
+                if (step.node === 'sync-email' && emailFailure) {
+                    el.classList.add('error');
+                    addTravelingDot(step.arrow, 'red');
+                    syncLatEl.textContent = 'TIMEOUT ⚠';
+                    await sleep(2000);
+                    stopSimTimer(timer, 'TIMEOUT ⚠', 'done-red');
+                    showComparison(null);
+                    syncAnimating = false;
+                    return;
+                }
+
+                // Highlight node
+                el.classList.add('active-sync');
+                if (step.arrow) addTravelingDot(step.arrow, 'red');
+
+                // Update running total label
+                if (step.simLatency > 0) {
+                    syncLatEl.textContent = accumulatedSim + 'ms...';
+                    syncLatEl.style.transform = 'scale(1.05)';
+                    setTimeout(() => syncLatEl.style.transform = 'scale(1)', 200);
+                }
+
+                await sleep(step.visualDelay);
+                el.classList.remove('active-sync');
+            }
+
+            // Final — all numbers consistent: 350ms
+            syncLatEl.textContent = '350ms ❌';
+            stopSimTimer(timer, '350ms', 'done-red');
+            showComparison(SYNC_TOTAL_SIM);
+            syncAnimating = false;
+        }
+
+        // ════════════════════════════════════════
+        // ASYNC ANIMATION (fast, instant feel)
+        // ════════════════════════════════════════
+        const ASYNC_SIM_RESPONSE = 20; // simulated async response time
+
+        async function animateAsyncChain(order) {
+            // Start timer — will count 0→20 quickly
+            const timer = startSimTimer('asyncTimerValue', ASYNC_SIM_RESPONSE, 100);
+
+            // POST lights up
+            const post = document.getElementById('async-post');
+            post.classList.add('active-async');
+            addTravelingDot('arrow-a1', 'green');
+            await sleep(100);
+            post.classList.remove('active-async');
+
+            // Done! Timer stops at exactly 20ms (simulated).
+            stopSimTimer(timer, '20ms', 'done-green');
+
+            // Latency label — always shows 20ms
+            const latLabel = document.getElementById('async-latency');
+            latLabel.textContent = '202 Accepted — 20ms ✅';
+            latLabel.style.transform = 'scale(1.1)';
+            setTimeout(() => latLabel.style.transform = 'scale(1)', 300);
+
+            // Arrow to broker
+            addTravelingDot('arrow-a2', 'yellow');
+            await sleep(120);
+
+            // Broker flashes
+            const broker = document.getElementById('broker-box');
+            broker.classList.add('broker-active');
+            broker.classList.add('pulse-broker');
+            setTimeout(() => {
+                broker.classList.remove('broker-active');
+                broker.classList.remove('pulse-broker');
+            }, 1200);
+
+            // All 3 services process in PARALLEL with SAME latencies as sync
+            await sleep(150);
+            const services = [
+                { id: 'async-inventory', arrow: 'arrow-b1', latId: 'async-inv-lat', simMs: 50, visualMs: 500 },
+                { id: 'async-email', arrow: 'arrow-b2', latId: 'async-email-lat', simMs: 200, visualMs: 1200 },
+                { id: 'async-analytics', arrow: 'arrow-b3', latId: 'async-ana-lat', simMs: 100, visualMs: 600 },
+            ];
+
+            services.forEach((svc) => {
+                const el = document.getElementById(svc.id);
+                if (el.classList.contains('offline')) return;
+                addTravelingDot(svc.arrow, 'green');
+
+                // Each service processes independently (same time as sync, but in parallel!)
+                setTimeout(() => {
+                    el.classList.add('active-async');
+                    el.classList.add('pulse-green');
+
+                    // Animate latency label counting up
+                    const latEl = document.getElementById(svc.latId);
+                    if (latEl) {
+                        const startT = performance.now();
+                        const latInterval = setInterval(() => {
+                            const progress = Math.min((performance.now() - startT) / svc.visualMs, 1);
+                            const cur = Math.round(progress * svc.simMs);
+                            latEl.textContent = '+' + cur + 'ms';
+                            latEl.style.color = '#3fb950';
+                        }, 30);
+
+                        setTimeout(() => {
+                            clearInterval(latInterval);
+                            latEl.textContent = '+' + svc.simMs + 'ms ✓';
+                            latEl.style.color = '#3fb950';
+                            el.classList.remove('active-async');
+                            el.classList.remove('pulse-green');
+                            // Reset label after a while
+                            setTimeout(() => {
+                                latEl.textContent = '+' + svc.simMs + 'ms';
+                                latEl.style.color = '';
+                            }, 2000);
+                        }, svc.visualMs);
+                    }
+                }, 150);
+            });
+        }
+
+        // ════════════════════════════════════════
+        // COMPARISON BAR
+        // ════════════════════════════════════════
+        function showComparison(syncMs) {
+            const bar = document.getElementById('comparisonBar');
+            const fill = document.getElementById('compBarFill');
+            const label = document.getElementById('compLabel');
+
+            if (!syncMs) {
+                bar.classList.add('visible');
+                label.textContent = '∞×';
+                fill.style.width = '100%';
+                return;
+            }
+
+            // Always use simulated values: 350ms / 20ms = 17.5×
+            const ratio = (syncMs / ASYNC_SIM_RESPONSE).toFixed(1);
+            bar.classList.add('visible');
+
+            // Animate fill
+            fill.style.width = '0%';
+            setTimeout(() => { fill.style.width = '100%'; }, 50);
+            label.textContent = ratio + '×';
+
+            // Hide after 6s
+            setTimeout(() => bar.classList.remove('visible'), 6000);
+        }
+
+        function addTravelingDot(arrowId, color) {
+            const arrow = document.getElementById(arrowId);
+            if (!arrow) return;
+            const dot = document.createElement('div');
+            dot.className = `traveling-dot ${color}`;
+            arrow.appendChild(dot);
+            setTimeout(() => dot.remove(), 400);
+        }
+
+        // ════════════════════════════════════════
+        // MESSAGE LOG
+        // ════════════════════════════════════════
+        function addLogRow(order, status) {
+            const log = document.getElementById('messageLog');
+            const ts = new Date(order.timestamp).toLocaleTimeString();
+
+            const row = document.createElement('div');
+            row.className = 'log-row';
+            row.id = `log-${order.id}`;
+            row.innerHTML = `
+    <span class="ts">${ts}</span>
+    <span class="order-id">${order.id}</span>
+    <span class="product">${order.product}</span>
+    <span class="amount">$${order.amount.toFixed(2)}</span>
+    <span class="status-badge badge-${status}" id="badge-${order.id}">${status}</span>
+  `;
+
+            // Append at bottom (terminal style)
+            log.appendChild(row);
+            logRows.push(order.id);
+
+            // Auto-scroll to bottom
+            log.scrollTop = log.scrollHeight;
+
+            // Trim old rows from top
+            while (logRows.length > MAX_LOG) {
+                const oldId = logRows.shift();
+                const oldEl = document.getElementById(`log-${oldId}`);
+                if (oldEl) oldEl.remove();
+            }
+        }
+
+        function updateLogRowStatus(orderId, status) {
+            const badge = document.getElementById(`badge-${orderId}`);
+            if (!badge) return;
+            badge.className = `status-badge badge-${status}`;
+            badge.textContent = status;
+        }
+
+        // ════════════════════════════════════════
+        // WORKERS
+        // ════════════════════════════════════════
+        function renderWorkers(workers) {
+            const grid = document.getElementById('consumerGrid');
+
+            if (!workers || workers.length === 0) {
+                grid.innerHTML = '<div class="no-workers">No consumers connected<br><span style="font-size:11px;color:#30363d;margin-top:4px;display:block;">Run: node consumer.js Worker-1</span></div>';
+                return;
+            }
+
+            grid.innerHTML = workers.map(w => {
+                const isProcessing = w.status === 'processing';
+                const currentText = w.current ? `${w.current.id} — ${w.current.product}` : 'Idle';
+                return `
+      <div class="worker-card ${isProcessing ? 'processing' : ''}">
+        <div class="worker-header">
+          <div class="status-dot ${isProcessing ? 'busy' : 'idle'}"></div>
+          <span class="worker-name">${w.name}</span>
+        </div>
+        <div class="worker-current">${currentText}</div>
+        <div class="worker-stats">Processed: ${w.processed}</div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${isProcessing ? '60%' : '0%'}"></div>
+        </div>
+      </div>
+    `;
+            }).join('');
+        }
+
+        // ════════════════════════════════════════
+        // DEMO SIDEBAR
+        // ════════════════════════════════════════
+        function toggleSidebar() {
+            const sb = document.getElementById('demoSidebar');
+            sb.classList.toggle('open');
+            const btn = sb.querySelector('.sidebar-toggle');
+            btn.textContent = sb.classList.contains('open') ? 'DEMO ◂' : 'DEMO ▸';
+        }
+
+        async function runDemoStep(step) {
+            // Highlight active step
+            document.querySelectorAll('.demo-step').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
+
+            switch (step) {
+                case 1:
+                    // Queue fills up — send 15 orders rapidly
+                    for (let i = 0; i < 15; i++) {
+                        await fetch('/api/send', { method: 'POST' });
+                        await sleep(120);
+                    }
+                    break;
+                case 2:
+                    // Just highlight — user runs consumer manually
+                    pulseNode('broker-box');
+                    break;
+                case 3:
+                    // Just highlight — user runs second consumer
+                    pulseNode('broker-box');
+                    break;
+                case 4:
+                    // Toggle failure
+                    const tog = document.getElementById('failureToggle');
+                    if (!tog.classList.contains('active')) {
+                        toggleFailure();
+                    }
+                    break;
+            }
+        }
+
+        function pulseNode(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('pulse-broker');
+            setTimeout(() => el.classList.remove('pulse-broker'), 1500);
+        }
+
+        // ════════════════════════════════════════
+        // UTILS
+        // ════════════════════════════════════════
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // ════════════════════════════════════════
+        // RESIZE HANDLE — drag to resize feed zone
+        // ════════════════════════════════════════
+        (function initResize() {
+            const handle = document.getElementById('resizeHandle');
+            const feed = document.getElementById('feedZone');
+            let isDragging = false;
+            let startY = 0;
+            let startH = 0;
+
+            handle.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startY = e.clientY;
+                startH = feed.offsetHeight;
+                handle.classList.add('dragging');
+                document.body.style.cursor = 'ns-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const diff = startY - e.clientY; // drag up = bigger
+                const newH = Math.min(Math.max(startH + diff, 100), window.innerHeight * 0.7);
+                feed.style.height = newH + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!isDragging) return;
+                isDragging = false;
+                handle.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            });
+        })();
+
+        // ════════════════════════════════════════
+        // SYNC COLUMN TOGGLE
+        // ════════════════════════════════════════
+        let syncVisible = true;
+        function toggleSyncColumn() {
+            syncVisible = !syncVisible;
+            const col = document.querySelector('.col-sync');
+            const divider = document.querySelector('.divider');
+            const btn = document.getElementById('btnSyncToggle');
+            if (syncVisible) {
+                col.classList.remove('hidden');
+                divider.classList.remove('hidden');
+                btn.textContent = 'Sync ◉';
+                btn.classList.remove('off');
+            } else {
+                col.classList.add('hidden');
+                divider.classList.add('hidden');
+                btn.textContent = 'Sync ○';
+                btn.classList.add('off');
+            }
+        }
+
+        // ════════════════════════════════════════
+        // INIT
+        // ════════════════════════════════════════
+        connectWS();
+
+        // Fetch initial state
+        fetch('/api/state').then(r => r.json()).then(state => {
+            emailFailure = state.emailFailure;
+            updateEmailFailureUI();
+            if (state.stats) updateCounters(state.stats);
+            if (state.workers) renderWorkers(state.workers);
+        }).catch(() => { });
+    </script>
+</body>
+
+</html>
